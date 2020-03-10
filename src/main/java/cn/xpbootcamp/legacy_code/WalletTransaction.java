@@ -47,27 +47,20 @@ public class WalletTransaction {
         try {
             isLocked = RedisDistributedLock.getSingletonInstance().lock(id);
 
-            // 锁定未成功，返回false
             if (!isLocked) {
                 return false;
             }
             if (status == STATUS.EXECUTED) return true; // double check
-            long executionInvokedTimestamp = System.currentTimeMillis();
-            // 交易超过20天
-            if (executionInvokedTimestamp - createdTimestamp > 1728000000) {
-                this.status = STATUS.EXPIRED;
-                return false;
-            }
-            WalletService walletService = new WalletServiceImpl();
+
+            if (transactionOver20Days()) return false;
+
+            WalletService walletService = getWalletService();
             String walletTransactionId = walletService.moveMoney(id, buyerId, sellerId, amount);
-            if (walletTransactionId != null) {
-                this.walletTransactionId = walletTransactionId;
-                this.status = STATUS.EXECUTED;
-                return true;
-            } else {
-                this.status = STATUS.FAILED;
-                return false;
-            }
+
+            if (transactionSuccessfullyExecuted(walletTransactionId)) return true;
+
+            this.status = STATUS.FAILED;
+            return false;
         } finally {
             if (isLocked) {
                 RedisDistributedLock.getSingletonInstance().unlock(id);
@@ -75,4 +68,25 @@ public class WalletTransaction {
         }
     }
 
+    private boolean transactionSuccessfullyExecuted(String walletTransactionId) {
+        if (walletTransactionId != null) {
+            this.walletTransactionId = walletTransactionId;
+            this.status = STATUS.EXECUTED;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean transactionOver20Days() {
+        long executionInvokedTimestamp = System.currentTimeMillis();
+        if (executionInvokedTimestamp - createdTimestamp > 1728000000) {
+            this.status = STATUS.EXPIRED;
+            return true;
+        }
+        return false;
+    }
+
+    private WalletServiceImpl getWalletService() {
+        return new WalletServiceImpl();
+    }
 }
