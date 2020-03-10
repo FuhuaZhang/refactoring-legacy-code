@@ -18,9 +18,11 @@ public class WalletTransaction {
     private Double amount;
     private STATUS status;
     private String walletTransactionId;
+    private RedisDistributedLock redisDistributedLock;
 
 
-    public WalletTransaction(String preAssignedId, Long buyerId, Long sellerId, Long productId, String orderId, Double amount) {
+
+    public WalletTransaction(String preAssignedId, Long buyerId, Long sellerId, Long productId, String orderId, Double amount, RedisDistributedLock redisDistributedLock) {
         if (preAssignedId != null && !preAssignedId.isEmpty()) {
             this.id = preAssignedId;
         } else {
@@ -36,6 +38,7 @@ public class WalletTransaction {
         this.amount = amount;
         this.status = STATUS.TO_BE_EXECUTED;
         this.createdTimestamp = System.currentTimeMillis();
+        this.redisDistributedLock = redisDistributedLock == null ? RedisDistributedLock.getSingletonInstance() : redisDistributedLock;
     }
 
     public boolean execute() throws InvalidTransactionException {
@@ -45,7 +48,7 @@ public class WalletTransaction {
         if (status == STATUS.EXECUTED) return true;
         boolean isLocked = false;
         try {
-            isLocked = RedisDistributedLock.getSingletonInstance().lock(id);
+            isLocked = redisDistributedLock.lock(id);
 
             if (!isLocked) {
                 return false;
