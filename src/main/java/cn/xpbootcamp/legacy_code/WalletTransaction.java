@@ -1,7 +1,7 @@
 package cn.xpbootcamp.legacy_code;
 
+import cn.xpbootcamp.legacy_code.entity.TransactionItem;
 import cn.xpbootcamp.legacy_code.enums.STATUS;
-import cn.xpbootcamp.legacy_code.service.WalletService;
 import cn.xpbootcamp.legacy_code.service.WalletServiceImpl;
 import cn.xpbootcamp.legacy_code.utils.IdGenerator;
 import cn.xpbootcamp.legacy_code.utils.RedisDistributedLock;
@@ -10,18 +10,14 @@ import javax.transaction.InvalidTransactionException;
 
 public class WalletTransaction {
     private String id;
-    private Long buyerId;
-    private Long sellerId;
-    private Long productId;
-    private String orderId;
     private Long createdTimestamp;
-    private Double amount;
     private STATUS status;
     private String walletTransactionId;
     private RedisDistributedLock redisDistributedLock;
     private WalletServiceImpl walletService;
+    private TransactionItem transactionItem;
 
-    public WalletTransaction(String preAssignedId, Long buyerId, Long sellerId, Long productId, String orderId, Double amount, RedisDistributedLock redisDistributedLock, WalletServiceImpl walletService) {
+    public WalletTransaction(String preAssignedId, TransactionItem transactionItem, RedisDistributedLock redisDistributedLock, WalletServiceImpl walletService) {
         if (preAssignedId != null && !preAssignedId.isEmpty()) {
             this.id = preAssignedId;
         } else {
@@ -30,11 +26,7 @@ public class WalletTransaction {
         if (!this.id.startsWith("t_")) {
             this.id = "t_" + preAssignedId;
         }
-        this.buyerId = buyerId;
-        this.sellerId = sellerId;
-        this.productId = productId;
-        this.orderId = orderId;
-        this.amount = amount;
+        this.transactionItem = transactionItem;
         this.status = STATUS.TO_BE_EXECUTED;
         this.createdTimestamp = System.currentTimeMillis();
         this.redisDistributedLock = redisDistributedLock == null ? RedisDistributedLock.getSingletonInstance() : redisDistributedLock;
@@ -42,9 +34,7 @@ public class WalletTransaction {
     }
 
     public boolean execute() throws InvalidTransactionException {
-        if (buyerId == null || (sellerId == null || amount < 0.0)) {
-            throw new InvalidTransactionException("This is an invalid transaction");
-        }
+        transactionItem.checkTransactionItemValidity();
         if (status == STATUS.EXECUTED) return true;
         boolean isLocked = false;
         try {
@@ -57,7 +47,7 @@ public class WalletTransaction {
 
             if (transactionOver20Days()) return false;
 
-            String walletTransactionId = walletService.moveMoney(id, buyerId, sellerId, amount);
+            String walletTransactionId = walletService.moveMoney(id, transactionItem);
 
             if (transactionSuccessfullyExecuted(walletTransactionId)) return true;
 
