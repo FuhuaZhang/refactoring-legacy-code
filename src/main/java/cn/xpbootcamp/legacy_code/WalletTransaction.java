@@ -19,10 +19,9 @@ public class WalletTransaction {
     private STATUS status;
     private String walletTransactionId;
     private RedisDistributedLock redisDistributedLock;
+    private WalletServiceImpl walletService;
 
-
-
-    public WalletTransaction(String preAssignedId, Long buyerId, Long sellerId, Long productId, String orderId, Double amount, RedisDistributedLock redisDistributedLock) {
+    public WalletTransaction(String preAssignedId, Long buyerId, Long sellerId, Long productId, String orderId, Double amount, RedisDistributedLock redisDistributedLock, WalletServiceImpl walletService) {
         if (preAssignedId != null && !preAssignedId.isEmpty()) {
             this.id = preAssignedId;
         } else {
@@ -39,6 +38,7 @@ public class WalletTransaction {
         this.status = STATUS.TO_BE_EXECUTED;
         this.createdTimestamp = System.currentTimeMillis();
         this.redisDistributedLock = redisDistributedLock == null ? RedisDistributedLock.getSingletonInstance() : redisDistributedLock;
+        this.walletService = walletService;
     }
 
     public boolean execute() throws InvalidTransactionException {
@@ -57,7 +57,6 @@ public class WalletTransaction {
 
             if (transactionOver20Days()) return false;
 
-            WalletService walletService = getWalletService();
             String walletTransactionId = walletService.moveMoney(id, buyerId, sellerId, amount);
 
             if (transactionSuccessfullyExecuted(walletTransactionId)) return true;
@@ -87,9 +86,5 @@ public class WalletTransaction {
             return true;
         }
         return false;
-    }
-
-    private WalletServiceImpl getWalletService() {
-        return new WalletServiceImpl();
     }
 }
